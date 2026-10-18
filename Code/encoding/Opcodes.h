@@ -54,6 +54,9 @@ enum ClientOpcode : unsigned char
     kRequestRemoveWaypoint,
     kSetTimeCommandRequest,
     kRequestActionEvents,
+    kDropItemRequest,
+    kDroppedItemMoveRequest,
+    kPickUpDroppedItemRequest,
     kClientOpcodeMax
 };
 
@@ -115,5 +118,9 @@ enum ServerOpcode : unsigned char
     kNotifySetTimeResult,
     kNotifyActionEvents,
     kNotifyRemoveObjects,
+    kDropItemResponse,
+    kNotifyDroppedItemsSpawn,
+    kNotifyDroppedItemMove,
+    kNotifyDroppedItemsRemove,
     kServerOpcodeMax
 };
