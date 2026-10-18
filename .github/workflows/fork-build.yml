@@ -1,0 +1,87 @@
+name: Fork build (client + server)
+
+# Builds the playable Windows client and the dedicated server image from the same commit.
+# The server rejects clients built from another commit (BUILD_COMMIT check), so both
+# halves always have to come from one run of this workflow.
+#
+# Outputs:
+#   - Client: artifact "SkyrimTogether-<version>-windows-x64" (+ debug symbols), kept 7 days.
+#   - Server: ghcr.io/<owner>/st-reborn-server:<version> and :latest (linux/amd64).
+# <version> is `git describe --tags --always` without the leading "v", the same string
+# the client artifact uses, so matching both is a plain text comparison.
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  build-client:
+    uses: ./.github/workflows/windows-playable-build.yml
+
+  build-server:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # We need full history in order to create a version string (BuildInfo.h)
+          fetch-depth: 0
+
+      - name: Checkout submodules
+        run: |
+          git submodule sync --recursive
+          git submodule update --init --force --recursive --depth=1
+
+      - name: Resolve image name and version
+        id: image
+        run: |
+          owner="${GITHUB_REPOSITORY_OWNER,,}"
+          version="$(git describe --tags --always)"
+          echo "name=ghcr.io/${owner}/st-reborn-server" >> "$GITHUB_OUTPUT"
+          echo "version=${version#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v4
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build and push
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          platforms: linux/amd64
+          build-args: |
+            GITHUB_ACTIONS=true
+          push: true
+          tags: |
+            ${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }}
+            ${{ steps.image.outputs.name }}:latest
+          cache-from: type=gha,scope=fork-amd64
+          cache-to: type=gha,mode=max,scope=fork-amd64
+          labels: |
+            org.opencontainers.image.title=Skyrim Together Server (fork build)
+            org.opencontainers.image.description=Dedicated server for the Skyrim Together multiplayer mod, built from ${{ github.repository }}
+            org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
+            org.opencontainers.image.revision=${{ github.sha }}
+            org.opencontainers.image.version=${{ steps.image.outputs.version }}
+
+      - name: Summary
+        run: |
+          {
+            echo "### Server image"
+            echo ""
+            echo "\`${{ steps.image.outputs.name }}:${{ steps.image.outputs.version }}\`"
+            echo ""
+            echo "Commit: \`${{ github.sha }}\`"
+            echo ""
+            echo "Client artifact: \`SkyrimTogether-${{ steps.image.outputs.version }}-windows-x64\` (same commit)."
+          } >> "$GITHUB_STEP_SUMMARY"
