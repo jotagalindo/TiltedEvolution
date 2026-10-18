@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Publishes the GitHub release for one run of fork-build.yml, in this fork only.
 # Expects: VERSION, IMAGE, NOTES (may be empty), GH_TOKEN and the standard GITHUB_* variables,
-# and the client artifacts already downloaded into release-files/.
+# and the two artifacts downloaded into release-files/client and release-files/symbols.
 set -euo pipefail
 
 : "${VERSION:?VERSION is required}"
@@ -18,21 +18,42 @@ release_tag="${branch_name}-${VERSION}"
 client_zip="release-files/SkyrimTogether-${VERSION}-windows-x64.zip"
 symbols_zip="release-files/SkyrimTogether-${VERSION}-windows-x64-debug-symbols.zip"
 
-# download-artifact hands back the zip itself for artifacts uploaded with archive: false.
-# If it ever unpacks one into a folder instead, zip that folder back under the expected name.
-for expected_zip in "$client_zip" "$symbols_zip"; do
-    if [[ -d "$expected_zip" ]]; then
-        unpacked_folder="${expected_zip}.unpacked"
-        mv "$expected_zip" "$unpacked_folder"
-        (cd "$unpacked_folder" && zip -qr "../$(basename "$expected_zip")" .)
-        rm -rf "$unpacked_folder"
-    fi
-    if [[ ! -f "$expected_zip" ]]; then
-        echo "Missing release asset: $expected_zip" >&2
-        ls -la release-files >&2
+# Turns one downloaded artifact folder into the release zip. download-artifact unpacks the zip
+# that windows.yml uploaded, so the folder holds its contents; if it ever holds the zip itself
+# instead, that file is used as is.
+package_artifact() {
+    local artifact_folder="$1"
+    local target_zip="$2"
+    local target_zip_path
+    target_zip_path="$(pwd)/${target_zip}"
+
+    if [[ ! -d "$artifact_folder" ]] || [[ -z "$(ls -A "$artifact_folder")" ]]; then
+        echo "Missing or empty artifact folder: $artifact_folder" >&2
+        ls -laR release-files >&2 || true
         exit 1
     fi
-done
+
+    local folder_entries=("$artifact_folder"/*)
+    if [[ ${#folder_entries[@]} -eq 1 && -f "${folder_entries[0]}" && "${folder_entries[0]}" == *.zip ]]; then
+        mv "${folder_entries[0]}" "$target_zip_path"
+    else
+        (cd "$artifact_folder" && zip -qr "$target_zip_path" .)
+    fi
+
+    rm -rf "$artifact_folder"
+}
+
+package_artifact release-files/client "$client_zip"
+package_artifact release-files/symbols "$symbols_zip"
+
+# The client zip has to install straight into Data/ from Vortex.
+# The listing goes through a variable: piping unzip into `grep -q` breaks under pipefail.
+client_zip_listing="$(unzip -Z1 "$client_zip")"
+if ! grep -qx 'SkyrimTogetherReborn/SkyrimTogether.exe' <<< "$client_zip_listing"; then
+    echo "The client zip has no SkyrimTogetherReborn/SkyrimTogether.exe at its root:" >&2
+    head -n 20 <<< "$client_zip_listing" >&2
+    exit 1
+fi
 
 previous_release_tag="$(git tag --list "${branch_name}-*" --sort=-creatordate | head -n 1)"
 notes_file="$(mktemp)"
