@@ -14,12 +14,16 @@ Fork de [tiltedphoques/TiltedEvolution](https://github.com/tiltedphoques/TiltedE
 
 El servidor rechaza cualquier cliente compilado de otro commit (comprobación `BUILD_COMMIT`), así que **los dos siempre salen de la misma ejecución** del workflow [`fork-build.yml`](.github/workflows/fork-build.yml):
 
-1. GitHub → *Actions* → **Fork build (client + server)** → *Run workflow* (rama `jota`).
-2. Cuando acaba (unos 15 minutos):
-   - **Cliente:** artefacto `SkyrimTogether-<versión>-windows-x64` en la página de la ejecución. Dura 7 días y hace falta sesión en GitHub para descargarlo.
-   - **Símbolos de depuración:** artefacto `…-debug-symbols`. Sirven para leer los `crash_UTC_*.dmp`.
-   - **Servidor:** imagen `ghcr.io/jotagalindo/st-reborn-server:<versión>`. También se etiqueta con el nombre de la rama (`:jota`, `:jota-extra`), pero esa etiqueta cambia con cada build: en Portainer, fijar siempre `<versión>`.
-3. `<versión>` es la misma en los dos (salida de `git describe --tags --always`, sin la `v`). Viene en el resumen de la ejecución.
+1. GitHub → *Actions* → **Fork build (client + server)** → *Run workflow*: elegir la rama y escribir en **notes** qué cambia en esta build. Desde la terminal: `gh workflow run fork-build.yml -R jotagalindo/TiltedEvolution --ref <rama> -f notes="…"`.
+2. Cuando acaba (unos 15 minutos) **se publica una release en este fork** (*Releases*), con etiqueta `<rama>-<versión>`, que incluye:
+   - **Cliente:** `SkyrimTogether-<versión>-windows-x64.zip`, listo para instalar con Vortex.
+   - **Símbolos de depuración:** `…-debug-symbols.zip`. Sirven para leer los `crash_UTC_*.dmp`.
+   - **Notas:** el texto de *notes*, cómo instalarla, la línea `image:` del servidor, los cambios respecto a `dev` oficial y los cambios desde la release anterior de la misma rama.
+   - Las builds de ramas que no son `jota` salen marcadas como *pre-release*.
+3. **Servidor:** imagen `ghcr.io/jotagalindo/st-reborn-server:<versión>`. También se etiqueta con el nombre de la rama (`:jota`, `:jota-extra`), pero esa etiqueta cambia con cada build: en Portainer, fijar siempre `<versión>`.
+4. `<versión>` es la misma en cliente y servidor: salida de `git describe --tags --always --match 'v[0-9]*'`, sin la `v`. El `--match` hace que solo cuenten las etiquetas oficiales `vX.Y.Z` y no las de nuestras releases (también en `windows.yml`).
+5. Los artefactos de la ejecución duran 7 días; las releases no caducan.
+6. El script de la release (`.github/scripts/fork-release.sh`) se niega a publicar si el repositorio es `tiltedphoques/*`: las releases solo van a este fork.
 
 ## Actualizar desde el proyecto oficial
 
