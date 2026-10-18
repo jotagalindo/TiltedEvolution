@@ -57,7 +57,8 @@ jobs:
       - name: Resolve artifact version
         if: ${{ inputs.upload-build-for-next-job }}
         run: |
-          version="$(git describe --tags --always)"
+          # Only release tags (vX.Y.Z) count, so the fork's per-build release tags don't change the version string
+          version="$(git describe --tags --always --match 'v[0-9]*')"
           echo "ARTIFACT_VERSION=${version#v}" >> "$GITHUB_ENV"
           if [ "$SKYRIM_VERSION" != "latest" ]; then
             echo "ASSET_SUFFIX=-sse${SKYRIM_VERSION}" >> "$GITHUB_ENV"

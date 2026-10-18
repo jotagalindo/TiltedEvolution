@@ -8,11 +8,20 @@ name: Fork build (client + server)
 #   - Client: artifact "SkyrimTogether-<version>-windows-x64" (+ debug symbols), kept 7 days.
 #   - Server: ghcr.io/<owner>/st-reborn-server:<version> and :<branch> (linux/amd64).
 #     The branch tag moves with every build of that branch; pin <version> in Portainer.
-# <version> is `git describe --tags --always` without the leading "v", the same string
-# the client artifact uses, so matching both is a plain text comparison.
+#   - Release in this fork, tagged "<branch>-<version>", with the client zip, the debug
+#     symbols, the server image line and the notes passed in the "notes" input.
+# <version> is `git describe --tags --always --match 'v[0-9]*'` without the leading "v",
+# the same string the client artifact uses, so matching both is a plain text comparison.
+# Only vX.Y.Z tags count, so the release tags this workflow creates never change it.
 
 on:
   workflow_dispatch:
+    inputs:
+      notes:
+        description: "What changed in this build (Markdown, goes at the top of the release)"
+        required: false
+        type: string
+        default: ""
 
 permissions:
   contents: read
@@ -25,6 +34,9 @@ jobs:
   build-server:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    outputs:
+      image: ${{ steps.image.outputs.name }}
+      version: ${{ steps.image.outputs.version }}
 
     steps:
       - uses: actions/checkout@v7
@@ -41,7 +53,7 @@ jobs:
         id: image
         run: |
           owner="${GITHUB_REPOSITORY_OWNER,,}"
-          version="$(git describe --tags --always)"
+          version="$(git describe --tags --always --match 'v[0-9]*')"
           echo "name=ghcr.io/${owner}/st-reborn-server" >> "$GITHUB_OUTPUT"
           echo "version=${version#v}" >> "$GITHUB_OUTPUT"
           # Docker tags allow [A-Za-z0-9_.-]; branch names may contain "/"
@@ -88,3 +100,31 @@ jobs:
             echo ""
             echo "Client artifact: \`SkyrimTogether-${{ steps.image.outputs.version }}-windows-x64\` (same commit)."
           } >> "$GITHUB_STEP_SUMMARY"
+
+  release:
+    needs: [build-client, build-server]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          # Full history and the other branches, to list what this build changes
+          fetch-depth: 0
+
+      - name: Download client build
+        uses: actions/download-artifact@v8
+        with:
+          path: release-files
+          pattern: SkyrimTogether-*
+          merge-multiple: true
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ needs.build-server.outputs.version }}
+          IMAGE: ${{ needs.build-server.outputs.image }}
+          NOTES: ${{ inputs.notes }}
+        run: bash .github/scripts/fork-release.sh
