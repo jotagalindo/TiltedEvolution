@@ -114,12 +114,19 @@ jobs:
           # Full history and the other branches, to list what this build changes
           fetch-depth: 0
 
+      # Each artifact in its own folder: download-artifact unpacks them, and merging both into one
+      # folder mixes the client files with the debug symbols. fork-release.sh zips them back.
       - name: Download client build
         uses: actions/download-artifact@v8
         with:
-          path: release-files
-          pattern: SkyrimTogether-*
-          merge-multiple: true
+          name: SkyrimTogether-${{ needs.build-server.outputs.version }}-windows-x64
+          path: release-files/client
+
+      - name: Download debug symbols
+        uses: actions/download-artifact@v8
+        with:
+          name: SkyrimTogether-${{ needs.build-server.outputs.version }}-windows-x64-debug-symbols
+          path: release-files/symbols
 
       - name: Publish release
         env:
