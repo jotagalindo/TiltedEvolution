@@ -28,8 +28,14 @@ permissions:
   packages: write
 
 jobs:
+  # Only the client for the current game version (1.7.104). windows-playable-build.yml also
+  # builds a 1.6.1170 variant, which we don't play.
   build-client:
-    uses: ./.github/workflows/windows-playable-build.yml
+    uses: ./.github/workflows/windows.yml
+    with:
+      build-mode: release
+      skyrim-version: latest
+      upload-build-for-next-job: true
 
   build-server:
     runs-on: ubuntu-latest
