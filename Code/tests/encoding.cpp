@@ -434,6 +434,10 @@ TEST_CASE("Packets", "[encoding.packets]")
         auto& move = sendMessage.Updates[1];
         move.Position.x = 1234.5f;
         move.Direction = 0.75f;
+        move.HasLookAt = true;
+        move.LookOffset.x = -320.f;
+        move.LookOffset.y = 215.f;
+        move.LookOffset.z = -48.f;
 
         AnimationVariables vars;
         vars.Booleans.resize(76);

@@ -671,6 +671,8 @@ void CharacterService::OnReferencesMoveRequest(const ServerReferencesMoveRequest
         point.Rotation = {movement.Rotation.x, 0.f, movement.Rotation.y};
         point.Variables = movement.Variables;
         point.Direction = movement.Direction;
+        point.HasLookAt = movement.HasLookAt;
+        point.LookOffset = movement.LookOffset;
 
         InterpolationSystem::AddPoint(interpolationComponent, std::move(point), cArrivalTime);
     }
