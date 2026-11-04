@@ -9,6 +9,7 @@ Fork de [tiltedphoques/TiltedEvolution](https://github.com/tiltedphoques/TiltedE
 | Rama | Qué es |
 |---|---|
 | `oficial` | **La que usamos para jugar.** `dev` oficial tal cual, más solo nuestro CI (`fork-build.yml`, `.github/scripts/fork-release.sh` y el `--match` de versión en `windows.yml`). No lleva ningún cambio nuestro en el código del juego. |
+| `arreglos` | `oficial` más nuestros arreglos del código del juego, uno por commit (lista en el historial). Se actualiza haciendo merge de `oficial`. Si un arreglo funciona en el juego, pasa a ser la rama para jugar. |
 | `jota` | Rama por defecto del fork: `dev` oficial de 2026-10-16 más 4 PR del oficial (#848, #898, #861, #879). Su build (54) dio un fallo en el juego y se retiró. Se conserva solo como referencia. |
 | `jota-extra` | Pruebas: `jota` más #891, #895 y #913. Su release (67) se retiró. Referencia. |
 | `dev` | Copia de la `dev` oficial. No se toca: se actualiza desde `upstream`. |
@@ -38,3 +39,4 @@ git checkout oficial && git merge dev && git push origin oficial
 |---|---|
 | 2026-10-18 | Añadido `fork-build.yml`, releases por build y este archivo. Sin cambios en el código del juego. |
 | 2026-10-28 | Rama `oficial` creada desde `dev` oficial `25a0049a` (2026-10-27) con solo nuestro CI. `fork-build.yml` compila únicamente el cliente 1.7.104 llamando a `windows.yml`. |
+| 2026-11-04 | Rama `arreglos` creada desde `oficial` `5a47d50d`. Primer arreglo: la interfaz (F2) en pantallas ultrapanorámicas. El `OverlayRenderHandlerD3D11` de TiltedUI subía la vista entera a la GPU en cada repintado de CEF (unos 30 MB a 5120x1440, varias veces por fotograma con pocos FPS), así que el menú casi no se dibujaba y no respondía a los clics, sobre todo en exteriores. El cliente usa ahora su propio `OverlayTextureRenderHandler` (`Code/client/Services`), que solo sube la zona repintada y como mucho una vez por fotograma. El submódulo TiltedUI no se toca. |
