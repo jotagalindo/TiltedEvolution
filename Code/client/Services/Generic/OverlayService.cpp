@@ -42,6 +42,47 @@
 using TiltedPhoques::OverlayRenderHandler;
 using TiltedPhoques::OverlayRenderHandlerD3D11;
 
+/**
+ * @brief Test build only: logs how many UI frames CEF hands to the game per second.
+ *
+ * Paints only happen while the UI changes, so a window of more than two seconds means the UI was idle and is
+ * not logged.
+ */
+struct PaintCountingRenderHandler final : OverlayRenderHandlerD3D11
+{
+    using OverlayRenderHandlerD3D11::OverlayRenderHandlerD3D11;
+
+    void OnPaint(CefRefPtr<CefBrowser> apBrowser, PaintElementType aType, const RectList& acDirtyRects, const void* apBuffer, int aWidth, int aHeight) override
+    {
+        OverlayRenderHandlerD3D11::OnPaint(apBrowser, aType, acDirtyRects, apBuffer, aWidth, aHeight);
+
+        if (aType != PET_VIEW)
+            return;
+
+        const auto now = std::chrono::steady_clock::now();
+        const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(now - m_windowStart);
+
+        if (elapsed >= 1s)
+        {
+            if (elapsed <= 2s && m_paintCount > 0)
+            {
+                const double paintsPerSecond = static_cast<double>(m_paintCount) * 1000.0 / static_cast<double>(elapsed.count());
+                spdlog::info("Overlay: {} UI frames in {} ms ({:.1f} per second, {}x{})", m_paintCount, elapsed.count(), paintsPerSecond, aWidth, aHeight);
+            }
+
+            m_windowStart = now;
+            m_paintCount = 0;
+        }
+
+        ++m_paintCount;
+    }
+
+private:
+    // OnPaint always runs on CEF's UI thread
+    std::chrono::steady_clock::time_point m_windowStart{};
+    uint32_t m_paintCount{0};
+};
+
 struct D3D11RenderProvider final : OverlayApp::RenderProvider, OverlayRenderHandlerD3D11::Renderer
 {
     explicit D3D11RenderProvider(RenderSystemD3D11* apRenderSystem)
@@ -51,7 +92,7 @@ struct D3D11RenderProvider final : OverlayApp::RenderProvider, OverlayRenderHand
 
     OverlayRenderHandler* Create() override
     {
-        auto* pHandler = new OverlayRenderHandlerD3D11(this);
+        auto* pHandler = new PaintCountingRenderHandler(this);
         pHandler->SetVisible(true);
 
         return pHandler;
@@ -80,6 +121,14 @@ struct CpuRenderedOverlayApp final : OverlayApp
     void OnBeforeCommandLineProcessing(const CefString& acProcessType, CefRefPtr<CefCommandLine> apCommandLine) override
     {
         OverlayApp::OnBeforeCommandLineProcessing(acProcessType, apCommandLine);
+
+        // Test build only: an empty ui_on_gpu.txt next to the logs folder keeps CEF on the GPU, to compare both modes
+        std::error_code errorCode;
+        if (std::filesystem::exists(TiltedPhoques::GetPath() / "ui_on_gpu.txt", errorCode))
+        {
+            spdlog::info("Overlay: ui_on_gpu.txt found, CEF draws the UI on the GPU");
+            return;
+        }
 
         apCommandLine->AppendSwitch("disable-gpu");
         apCommandLine->AppendSwitch("disable-gpu-compositing");
